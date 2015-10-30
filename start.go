@@ -40,6 +40,7 @@ func (e ErrNoDefinitionsFound) Error() string {
 type HTTPMuxer interface {
 	Handle(string, http.Handler)
 	Handler(r *http.Request) (http.Handler, string)
+	ServeHTTP(http.ResponseWriter, *http.Request)
 }
 
 func NewStartApp(port int, rootDir string) *StartApp {
