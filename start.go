@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/braintree/manners"
 )
 
 const (
@@ -57,6 +59,7 @@ type StartApp struct {
 	Port                 string
 	PathToVerb           map[string][]string
 	PathVerbToDefinition map[string][]string
+	HTTPServer           *manners.GracefulServer
 	HTTPMuxer
 }
 
@@ -78,7 +81,21 @@ func (s *StartApp) Setup() error {
 		s.HTTPMuxer.Handle("/"+endpoint, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	}
 
+	s.HTTPServer = manners.NewWithServer(&http.Server{Handler: s.HTTPMuxer, Addr: ":" + s.Port})
+
 	return nil
+}
+
+func (s *StartApp) Run() error {
+	return s.HTTPServer.ListenAndServe()
+}
+
+func (s *StartApp) Stop() bool {
+	if s.HTTPServer != nil {
+		return s.HTTPServer.BlockingClose()
+	}
+
+	return true
 }
 
 func (s *StartApp) walkFn(path string, info os.FileInfo, err error) error {
