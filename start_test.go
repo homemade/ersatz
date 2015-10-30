@@ -37,23 +37,23 @@ func Test_ItBuildsAMapOfPathToHTTPVerbs(t *testing.T) {
 	dirName, cleanupFn := setupRootDir(t)
 	defer cleanupFn()
 	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", "POST"},
-		{"endpoint1", "GET"},
-		{"endpoint2", "GET"},
-		{"endpoint2", "subpoint1", "PUT"},
-		{"endpoint2", "subpoint1", "DELETE"},
+		{"endpoint1", HTTP_POST},
+		{"endpoint1", HTTP_GET},
+		{"endpoint2", HTTP_GET},
+		{"endpoint2", "subpoint1", HTTP_PUT},
+		{"endpoint2", "subpoint1", HTTP_DELETE},
 	})
 	expectedPathMap := map[string][]string{
 		"endpoint1": {
-			"GET",
-			"POST",
+			HTTP_GET,
+			HTTP_POST,
 		},
 		"endpoint2": {
-			"GET",
+			HTTP_GET,
 		},
 		"endpoint2/subpoint1": {
-			"DELETE",
-			"PUT",
+			HTTP_DELETE,
+			HTTP_PUT,
 		},
 	}
 
@@ -68,11 +68,11 @@ func Test_ItErrorsIfNoDefinitionFilesFound(t *testing.T) {
 	defer cleanupFn()
 
 	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", "POST"},
-		{"endpoint1", "GET"},
-		{"endpoint2", "GET"},
-		{"endpoint2", "subpoint1", "PUT"},
-		{"endpoint2", "subpoint1", "DELETE"},
+		{"endpoint1", HTTP_POST},
+		{"endpoint1", HTTP_GET},
+		{"endpoint2", HTTP_GET},
+		{"endpoint2", "subpoint1", HTTP_PUT},
+		{"endpoint2", "subpoint1", HTTP_DELETE},
 	})
 
 	err := NewStartApp(9999, dirName).Run()
@@ -85,27 +85,22 @@ func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
 	defer cleanupFn()
 
 	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", "POST"},
-		{"endpoint1", "GET"},
-		{"endpoint2", "GET"},
-		{"endpoint2", "subpoint1", "PUT"},
-		{"endpoint2", "subpoint1", "DELETE"},
+		{"endpoint1", HTTP_POST},
+		{"endpoint1", HTTP_GET},
+		{"endpoint2", HTTP_GET},
+		{"endpoint2", "subpoint1", HTTP_PUT},
+		{"endpoint2", "subpoint1", HTTP_DELETE},
 	})
 
-	_, err := os.Create(filepath.Join(dirName, "endpoint1", "POST", "default.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint1", "POST", "variation-1.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint1", "POST", "variation-2.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint1", "GET", "default.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint2", "subpoint1", "PUT", "default.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint2", "subpoint1", "DELETE", "default.json"))
-	assert.Nil(t, err)
-	_, err = os.Create(filepath.Join(dirName, "endpoint2", "subpoint1", "DELETE", "variation-1.json"))
-	assert.Nil(t, err)
+	setupDefinitionFiles(t, dirName, [][]string{
+		{"endpoint1", HTTP_POST, "default.json"},
+		{"endpoint1", HTTP_POST, "variation-1.json"},
+		{"endpoint1", HTTP_POST, "variation-2.json"},
+		{"endpoint1", HTTP_GET, "default.json"},
+		{"endpoint2", "subpoint1", HTTP_PUT, "default.json"},
+		{"endpoint2", "subpoint1", HTTP_DELETE, "default.json"},
+		{"endpoint2", "subpoint1", HTTP_DELETE, "variation-1.json"},
+	})
 
 	expectedMap := map[string][]string{
 		"endpoint1/POST": {
@@ -130,6 +125,13 @@ func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, expectedMap, startApp.PathVerbToDefinition)
+}
+
+func setupDefinitionFiles(t *testing.T, rootDir string, filePathParts [][]string) {
+	for _, pathParts := range filePathParts {
+		_, err := os.Create(filepath.Join(append([]string{rootDir}, pathParts...)...))
+		assert.Nil(t, err)
+	}
 }
 
 func setupSubFolders(t *testing.T, rootDir string, subDirs [][]string) {
