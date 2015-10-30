@@ -43,7 +43,7 @@ type HTTPMuxer interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
 }
 
-func NewStartApp(port int, rootDir string) *StartApp {
+func NewStartApp(port string, rootDir string) *StartApp {
 	return &StartApp{
 		RootDir:              rootDir,
 		Port:                 port,
@@ -54,7 +54,7 @@ func NewStartApp(port int, rootDir string) *StartApp {
 
 type StartApp struct {
 	RootDir              string
-	Port                 int
+	Port                 string
 	PathToVerb           map[string][]string
 	PathVerbToDefinition map[string][]string
 	HTTPMuxer

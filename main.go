@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/docopt/docopt.go"
 )
@@ -35,12 +34,13 @@ func entryPoint(cliArgs []string, stdin io.Reader, stdout io.Writer, stderr io.W
 	}
 
 	if args["start"].(bool) {
-		port, err := strconv.Atoi(args["<port>"].(string))
-		if err != nil {
+		startApp := NewStartApp(args["<port>"].(string), args["<definitions_dir>"].(string))
+
+		if err := startApp.Setup(); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		startApp := NewStartApp(port, args["<definitions_dir>"].(string))
+
 		if err := startApp.Run(); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
