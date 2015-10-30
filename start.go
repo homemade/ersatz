@@ -60,7 +60,7 @@ type StartApp struct {
 	HTTPMuxer
 }
 
-func (s *StartApp) Run() error {
+func (s *StartApp) Setup() error {
 	err := filepath.Walk(s.RootDir, s.walkFn)
 	if err != nil {
 		return err

@@ -16,7 +16,7 @@ func Test_ItReturnsErrorIfCantReadFromRootDIR(t *testing.T) {
 	os.Chmod(dirName, 0333)
 	expectedErr := &os.PathError{Op: "open", Path: dirName, Err: os.ErrPermission}
 
-	err := NewStartApp(9999, dirName).Run()
+	err := NewStartApp("9999", dirName).Setup()
 
 	assert.EqualError(t, err, expectedErr.Error())
 }
@@ -29,9 +29,9 @@ func Test_ItReturnsErrorIfNoHTTPVerbsFoundInSubDIRs(t *testing.T) {
 		{"endpoint2", "subpoint1"},
 	})
 
-	err := NewStartApp(9999, dirName).Run()
+	err := NewStartApp("9999", dirName).Setup()
 
-	assert.Error(t, err, ErrNoVerbsFound(dirName).Error())
+	assert.EqualError(t, err, ErrNoVerbsFound(dirName).Error())
 }
 
 func Test_ItBuildsAMapOfPathToHTTPVerbs(t *testing.T) {
@@ -58,8 +58,8 @@ func Test_ItBuildsAMapOfPathToHTTPVerbs(t *testing.T) {
 		},
 	}
 
-	startApp := NewStartApp(9999, dirName)
-	startApp.Run()
+	startApp := NewStartApp("9999", dirName)
+	startApp.Setup()
 
 	assert.Equal(t, expectedPathMap, startApp.PathToVerb)
 }
@@ -76,9 +76,9 @@ func Test_ItErrorsIfNoDefinitionFilesFound(t *testing.T) {
 		{"endpoint2", "subpoint1", HTTP_DELETE},
 	})
 
-	err := NewStartApp(9999, dirName).Run()
+	err := NewStartApp("9999", dirName).Setup()
 
-	assert.Error(t, err, ErrNoDefinitionsFound(dirName).Error())
+	assert.EqualError(t, err, ErrNoDefinitionsFound(dirName).Error())
 }
 
 func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
@@ -121,9 +121,9 @@ func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
 		},
 	}
 
-	startApp := NewStartApp(9999, dirName)
+	startApp := NewStartApp("9999", dirName)
 	startApp.HTTPMuxer = http.NewServeMux()
-	err := startApp.Run()
+	err := startApp.Setup()
 	assert.Nil(t, err)
 
 	assert.Equal(t, expectedMap, startApp.PathVerbToDefinition)
@@ -149,10 +149,10 @@ func Test_ItSetupsAHandlerForEachEndpointOnTheMux(t *testing.T) {
 		{"endpoint2", "subpoint1", HTTP_DELETE, "default.json"},
 	})
 
-	startApp := NewStartApp(9999, dirName)
+	startApp := NewStartApp("9999", dirName)
 	startApp.HTTPMuxer = http.NewServeMux()
 
-	err := startApp.Run()
+	err := startApp.Setup()
 	assert.Nil(t, err)
 
 	for endpoint, verbs := range startApp.PathToVerb {
