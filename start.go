@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -36,6 +37,11 @@ func (e ErrNoDefinitionsFound) Error() string {
 	return fmt.Sprintf("No definition files found within: %s", string(e))
 }
 
+type HTTPMuxer interface {
+	Handle(string, http.Handler)
+	Handler(r *http.Request) (http.Handler, string)
+}
+
 func NewStartApp(port int, rootDir string) *StartApp {
 	return &StartApp{
 		RootDir:              rootDir,
@@ -50,6 +56,7 @@ type StartApp struct {
 	Port                 int
 	PathToVerb           map[string][]string
 	PathVerbToDefinition map[string][]string
+	HTTPMuxer
 }
 
 func (s *StartApp) Run() error {
@@ -64,6 +71,10 @@ func (s *StartApp) Run() error {
 
 	if len(s.PathVerbToDefinition) == 0 {
 		return ErrNoDefinitionsFound(s.RootDir)
+	}
+
+	for endpoint := range s.PathToVerb {
+		s.HTTPMuxer.Handle("/"+endpoint, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	}
 
 	return nil

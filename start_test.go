@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -121,10 +122,49 @@ func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
 	}
 
 	startApp := NewStartApp(9999, dirName)
-	err = startApp.Run()
+	startApp.HTTPMuxer = http.NewServeMux()
+	err := startApp.Run()
 	assert.Nil(t, err)
 
 	assert.Equal(t, expectedMap, startApp.PathVerbToDefinition)
+}
+
+func Test_ItSetupsAHandlerForEachEndpointOnTheMux(t *testing.T) {
+	dirName, cleanupFn := setupRootDir(t)
+	defer cleanupFn()
+
+	setupSubFolders(t, dirName, [][]string{
+		{"endpoint1", HTTP_POST},
+		{"endpoint1", HTTP_GET},
+		{"endpoint2", HTTP_OPTIONS},
+		{"endpoint2", HTTP_HEAD},
+		{"endpoint2", "subpoint1", HTTP_PUT},
+		{"endpoint2", "subpoint1", HTTP_DELETE},
+	})
+
+	setupDefinitionFiles(t, dirName, [][]string{
+		{"endpoint1", HTTP_POST, "default.json"},
+		{"endpoint1", HTTP_GET, "default.json"},
+		{"endpoint2", "subpoint1", HTTP_PUT, "default.json"},
+		{"endpoint2", "subpoint1", HTTP_DELETE, "default.json"},
+	})
+
+	startApp := NewStartApp(9999, dirName)
+	startApp.HTTPMuxer = http.NewServeMux()
+
+	err := startApp.Run()
+	assert.Nil(t, err)
+
+	for endpoint, verbs := range startApp.PathToVerb {
+		for _, verb := range verbs {
+			req, err := http.NewRequest(verb, "/"+endpoint, nil)
+			assert.Nil(t, err)
+
+			_, path := startApp.HTTPMuxer.Handler(req)
+
+			assert.Equal(t, "/"+endpoint, path)
+		}
+	}
 }
 
 func setupDefinitionFiles(t *testing.T, rootDir string, filePathParts [][]string) {
