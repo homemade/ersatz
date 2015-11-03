@@ -1,182 +1,104 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_ItReturnsErrorIfCantReadFromRootDIR(t *testing.T) {
-	dirName, cleanupFn := setupRootDir(t)
-	defer cleanupFn()
-	os.Chmod(dirName, 0333)
-	expectedErr := &os.PathError{Op: "open", Path: dirName, Err: os.ErrPermission}
+var defaultJSON = `{ "headers": { "header-1": "some value" }, "body": { "a":1, "b":2, "c":3 }}`
 
-	err := NewStartApp("9999", dirName).Setup()
-
-	assert.EqualError(t, err, expectedErr.Error())
+type definitionFile struct {
+	verb      string
+	endpoints []string
+	variants  []string
+	json      string
 }
 
-func Test_ItReturnsErrorIfNoHTTPVerbsFoundInSubDIRs(t *testing.T) {
-	dirName, cleanupFn := setupRootDir(t)
-	defer cleanupFn()
-	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1"},
-		{"endpoint2", "subpoint1"},
-	})
+func Test_ItReturnsErrorIfPathDoesntExist(t *testing.T) {
 
-	err := NewStartApp("9999", dirName).Setup()
-
-	assert.EqualError(t, err, ErrNoVerbsFound(dirName).Error())
+	if err := NewStartApp("9999", "/this/doesnt/exist").Setup(); err == nil {
+		t.Error("Able to read from a non-existent directory")
+	}
 }
 
-func Test_ItBuildsAMapOfPathToHTTPVerbs(t *testing.T) {
+func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 	dirName, cleanupFn := setupRootDir(t)
 	defer cleanupFn()
-	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST},
-		{"endpoint1", HTTP_GET},
-		{"endpoint2", HTTP_GET},
-		{"endpoint2", "subpoint1", HTTP_PUT},
-		{"endpoint2", "subpoint1", HTTP_DELETE},
-	})
-	expectedPathMap := map[string][]string{
-		"endpoint1": {
-			HTTP_GET,
-			HTTP_POST,
-		},
-		"endpoint2": {
-			HTTP_GET,
-		},
-		"endpoint2/subpoint1": {
-			HTTP_DELETE,
-			HTTP_PUT,
-		},
+
+	endpoints := []definitionFile{
+		{HTTP_POST, []string{"endpoint1"}, []string{"default.json"}, defaultJSON},
+		{HTTP_GET, []string{"endpoint1"}, []string{"default.json"}, defaultJSON},
+		{HTTP_GET, []string{"endpoint1", "subendpoint1"}, []string{"default.json"}, defaultJSON},
 	}
 
-	startApp := NewStartApp("9999", dirName)
-	startApp.Setup()
-
-	assert.Equal(t, expectedPathMap, startApp.PathToVerb)
-}
-
-func Test_ItErrorsIfNoDefinitionFilesFound(t *testing.T) {
-	dirName, cleanupFn := setupRootDir(t)
-	defer cleanupFn()
-
-	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST},
-		{"endpoint1", HTTP_GET},
-		{"endpoint2", HTTP_GET},
-		{"endpoint2", "subpoint1", HTTP_PUT},
-		{"endpoint2", "subpoint1", HTTP_DELETE},
-	})
-
-	err := NewStartApp("9999", dirName).Setup()
-
-	assert.EqualError(t, err, ErrNoDefinitionsFound(dirName).Error())
-}
-
-func Test_ItBuildsMapOfPathVerbsAndDefinitionFiles(t *testing.T) {
-	dirName, cleanupFn := setupRootDir(t)
-	defer cleanupFn()
-
-	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST},
-		{"endpoint1", HTTP_GET},
-		{"endpoint2", HTTP_GET},
-		{"endpoint2", "subpoint1", HTTP_PUT},
-		{"endpoint2", "subpoint1", HTTP_DELETE},
-	})
-
-	setupDefinitionFiles(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST, "default.json"},
-		{"endpoint1", HTTP_POST, "variation-1.json"},
-		{"endpoint1", HTTP_POST, "variation-2.json"},
-		{"endpoint1", HTTP_GET, "default.json"},
-		{"endpoint2", "subpoint1", HTTP_PUT, "default.json"},
-		{"endpoint2", "subpoint1", HTTP_DELETE, "default.json"},
-		{"endpoint2", "subpoint1", HTTP_DELETE, "variation-1.json"},
-	})
-
-	expectedMap := map[string][]string{
-		"endpoint1/POST": {
-			"default.json",
-			"variation-1.json",
-			"variation-2.json",
-		},
-		"endpoint1/GET": {
-			"default.json",
-		},
-		"endpoint2/subpoint1/PUT": {
-			"default.json",
-		},
-		"endpoint2/subpoint1/DELETE": {
-			"default.json",
-			"variation-1.json",
-		},
-	}
+	setupSubFolders(t, dirName, endpoints)
+	setupDefinitionFiles(t, dirName, endpoints)
 
 	startApp := NewStartApp("9999", dirName)
-	startApp.HTTPMuxer = http.NewServeMux()
-	err := startApp.Setup()
-	assert.Nil(t, err)
-
-	assert.Equal(t, expectedMap, startApp.PathVerbToDefinition)
-}
-
-func Test_ItSetupsAHandlerForEachEndpointOnTheMux(t *testing.T) {
-	dirName, cleanupFn := setupRootDir(t)
-	defer cleanupFn()
-
-	setupSubFolders(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST},
-		{"endpoint1", HTTP_GET},
-		{"endpoint2", HTTP_OPTIONS},
-		{"endpoint2", HTTP_HEAD},
-		{"endpoint2", "subpoint1", HTTP_PUT},
-		{"endpoint2", "subpoint1", HTTP_DELETE},
-	})
-
-	setupDefinitionFiles(t, dirName, [][]string{
-		{"endpoint1", HTTP_POST, "default.json"},
-		{"endpoint1", HTTP_GET, "default.json"},
-		{"endpoint2", "subpoint1", HTTP_PUT, "default.json"},
-		{"endpoint2", "subpoint1", HTTP_DELETE, "default.json"},
-	})
-
-	startApp := NewStartApp("9999", dirName)
-	startApp.HTTPMuxer = http.NewServeMux()
 
 	err := startApp.Setup()
 	assert.Nil(t, err)
 
-	for endpoint, verbs := range startApp.PathToVerb {
-		for _, verb := range verbs {
-			req, err := http.NewRequest(verb, "/"+endpoint, nil)
-			assert.Nil(t, err)
+	exit := make(chan interface{})
 
-			_, path := startApp.HTTPMuxer.Handler(req)
+	go startApp.Run(exit)
 
-			assert.Equal(t, "/"+endpoint, path)
+	exit <- true
+
+	for _, df := range endpoints {
+
+		path := strings.Join(df.endpoints, "/")
+
+		req, err := http.NewRequest(
+			df.verb,
+			fmt.Sprintf("http://localhost:%s/%s", "9999", path),
+			bytes.NewBuffer([]byte("")),
+		)
+
+		assert.Nil(t, err)
+
+		client := &http.Client{}
+		res, err := client.Do(req)
+		assert.Nil(t, err)
+
+		if g, e := res.StatusCode, 200; g != e {
+			t.Errorf("Expected status code %d, got %d", g, e)
 		}
 	}
 }
 
-func setupDefinitionFiles(t *testing.T, rootDir string, filePathParts [][]string) {
-	for _, pathParts := range filePathParts {
-		_, err := os.Create(filepath.Join(append([]string{rootDir}, pathParts...)...))
-		assert.Nil(t, err)
+func setupDefinitionFiles(t *testing.T, rootDir string, dfs []definitionFile) {
+	for _, df := range dfs {
+
+		for _, variant := range df.variants {
+
+			path := filepath.Join(rootDir, filepath.Join(df.endpoints...), df.verb) + "/" + variant
+
+			// Create the file itself
+			f, err := os.Create(path)
+			assert.Nil(t, err)
+
+			// Write some stock data into it
+			n, err := f.Write([]byte(df.json))
+			assert.Nil(t, err)
+			assert.Equal(t, n, len(df.json))
+		}
 	}
 }
 
-func setupSubFolders(t *testing.T, rootDir string, subDirs [][]string) {
-	for _, subFilePath := range subDirs {
-		os.MkdirAll(filepath.Join(append([]string{rootDir}, subFilePath...)...), 0755)
+func setupSubFolders(t *testing.T, rootDir string, dfs []definitionFile) {
+	for _, df := range dfs {
+
+		path := filepath.Join(rootDir, filepath.Join(df.endpoints...), df.verb)
+		os.MkdirAll(path, 0755)
 	}
 }
 

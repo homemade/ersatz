@@ -1,21 +1,18 @@
 package main
 
-import (
-	"net/http"
-	"os"
-)
-
 type Endpoint struct {
-	Path               string
-	VerbsToDefinitions map[string][]*os.File
+	Headers map[string]string `json:"headers"`
+	Body    interface{}       `json:"body"`
 }
 
-func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for verb := range e.VerbsToDefinitions {
-		if r.Method == verb {
+type EndpointIndex struct {
+	URL     string
+	Method  string
+	Variant string
+}
 
-		}
-	}
+type EndpointCache map[EndpointIndex]*Endpoint
 
-	http.NotFound(w, r)
+func NewEndpoint() *Endpoint {
+	return &Endpoint{}
 }
