@@ -19,9 +19,10 @@ func NewServerApp(port string, rootDir string) *ServerApp {
 }
 
 type ServerApp struct {
-	RootDir       string
-	Port          string
-	EndpointCache EndpointCache
+	RootDir                   string
+	Port                      string
+	EndpointCache             EndpointCache
+	EndpointVariationSchedule EndpointVariationSchedule
 }
 
 /////////////////////////////////////////////////////

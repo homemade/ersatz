@@ -11,7 +11,7 @@ import (
 const (
 	version = "v0.0.1"
 	usage   = `usage:
-	ersatz start <port> <definitions_dir>
+	ersatz server <port> <definitions_dir>
 	ersatz -h | --help
 	ersatz --version
 
@@ -33,7 +33,7 @@ func entryPoint(cliArgs []string, stdin io.Reader, stdout io.Writer, stderr io.W
 		return 1
 	}
 
-	if args["start"].(bool) {
+	if args["server"].(bool) {
 
 		stop := make(chan interface{}, 1)
 
