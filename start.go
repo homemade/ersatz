@@ -11,14 +11,14 @@ import (
 	"github.com/braintree/manners"
 )
 
-func NewStartApp(port string, rootDir string) *StartApp {
-	return &StartApp{
+func NewServerApp(port string, rootDir string) *ServerApp {
+	return &ServerApp{
 		RootDir: rootDir,
 		Port:    port,
 	}
 }
 
-type StartApp struct {
+type ServerApp struct {
 	RootDir       string
 	Port          string
 	EndpointCache EndpointCache
@@ -28,7 +28,7 @@ type StartApp struct {
 // Check the basic settings and register handlers
 /////////////////////////////////////////////////////
 
-func (s *StartApp) Setup() error {
+func (s *ServerApp) Setup() error {
 
 	// Check that the path exists
 	path, err := os.Stat(s.RootDir)
@@ -50,7 +50,7 @@ func (s *StartApp) Setup() error {
 // Given an exit channel, run everything
 /////////////////////////////////////////////////////
 
-func (s *StartApp) Run(exit chan interface{}) {
+func (s *ServerApp) Run(exit chan interface{}) {
 	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), nil)
 
 	<-exit
@@ -60,7 +60,7 @@ func (s *StartApp) Run(exit chan interface{}) {
 // This is the main handler
 /////////////////////////////////////////////////////
 
-func (s *StartApp) Handle(w http.ResponseWriter, r *http.Request) {
+func (s *ServerApp) Handle(w http.ResponseWriter, r *http.Request) {
 
 	ep, err := s.fetchEndpoint(r.URL.Path[1:], r.Method)
 
@@ -92,7 +92,7 @@ func (s *StartApp) Handle(w http.ResponseWriter, r *http.Request) {
 // Fetch a given endpoint by method and url
 /////////////////////////////////////////////////////
 
-func (s *StartApp) fetchEndpoint(url, method string) (*Endpoint, error) {
+func (s *ServerApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 
 	variant := "default"
 

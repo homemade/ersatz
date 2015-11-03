@@ -24,7 +24,7 @@ type definitionFile struct {
 
 func Test_ItReturnsErrorIfPathDoesntExist(t *testing.T) {
 
-	if err := NewStartApp("9999", "/this/doesnt/exist").Setup(); err == nil {
+	if err := NewServerApp("9999", "/this/doesnt/exist").Setup(); err == nil {
 		t.Error("Able to read from a non-existent directory")
 	}
 }
@@ -42,7 +42,7 @@ func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 	setupSubFolders(t, dirName, endpoints)
 	setupDefinitionFiles(t, dirName, endpoints)
 
-	startApp := NewStartApp("9999", dirName)
+	startApp := NewServerApp("9999", dirName)
 
 	err := startApp.Setup()
 	assert.Nil(t, err)

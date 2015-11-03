@@ -37,7 +37,7 @@ func entryPoint(cliArgs []string, stdin io.Reader, stdout io.Writer, stderr io.W
 
 		stop := make(chan interface{}, 1)
 
-		startApp := NewStartApp(args["<port>"].(string), args["<definitions_dir>"].(string))
+		startApp := NewServerApp(args["<port>"].(string), args["<definitions_dir>"].(string))
 
 		if err := startApp.Setup(); err != nil {
 			fmt.Fprintln(stderr, err)
