@@ -13,8 +13,10 @@ import (
 
 func NewServerApp(port string, rootDir string) *ServerApp {
 	return &ServerApp{
-		RootDir: rootDir,
-		Port:    port,
+		RootDir:                   rootDir,
+		Port:                      port,
+		EndpointCache:             make(EndpointCache),
+		EndpointVariationSchedule: make(EndpointVariationSchedule),
 	}
 }
 
@@ -42,7 +44,8 @@ func (s *ServerApp) Setup() error {
 		return fmt.Errorf("Path is not a directory %s", s.RootDir)
 	}
 
-	http.HandleFunc("/", s.Handle)
+	http.HandleFunc("/__ersatz", s.HandleControlRequest)
+	http.HandleFunc("/", s.HandleMockRequest)
 
 	return nil
 }
@@ -58,10 +61,17 @@ func (s *ServerApp) Run(exit chan interface{}) {
 }
 
 /////////////////////////////////////////////////////
-// This is the main handler
+// Handle control requests to the ersatz process
 /////////////////////////////////////////////////////
 
-func (s *ServerApp) Handle(w http.ResponseWriter, r *http.Request) {
+func (s *ServerApp) HandleControlRequest(w http.ResponseWriter, r *http.Request) {
+}
+
+/////////////////////////////////////////////////////
+// This is the main handler for mock requests
+/////////////////////////////////////////////////////
+
+func (s *ServerApp) HandleMockRequest(w http.ResponseWriter, r *http.Request) {
 
 	ep, err := s.fetchEndpoint(r.URL.Path[1:], r.Method)
 
@@ -81,6 +91,10 @@ func (s *ServerApp) Handle(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+	if ep.ResponseCode > 0 {
+		w.WriteHeader(ep.ResponseCode)
+	}
 
 	for k, v := range ep.Headers {
 		w.Header().Set(k, v)
@@ -102,7 +116,7 @@ func (s *ServerApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 	}
 
 	// Check to see if the request is in the cache
-	if c, exists := s.EndpointCache[EndpointIndex{url, method, variant}]; exists {
+	if c, exists := s.EndpointCache[VariableEndpointIndex{EndpointIndex{url, method}, variant}]; exists {
 		return c, nil
 	}
 

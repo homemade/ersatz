@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var defaultJSON = `{ "headers": { "header-1": "some value" }, "body": { "a":1, "b":2, "c":3 }}`
+var defaultJSON = `{ "response_code": 200, "headers": { "header-1": "some value" }, "body": { "a":1, "b":2, "c":3 }}`
 
 type definitionFile struct {
 	verb      string
@@ -42,7 +42,7 @@ func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 	setupSubFolders(t, dirName, endpoints)
 	setupDefinitionFiles(t, dirName, endpoints)
 
-	startApp := NewServerApp("9999", dirName)
+	startApp := NewServerApp("9998", dirName)
 
 	err := startApp.Setup()
 	assert.Nil(t, err)
@@ -51,15 +51,13 @@ func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 
 	go startApp.Run(exit)
 
-	exit <- true
-
 	for _, df := range endpoints {
 
 		path := strings.Join(df.endpoints, "/")
 
 		req, err := http.NewRequest(
 			df.verb,
-			fmt.Sprintf("http://localhost:%s/%s", "9999", path),
+			fmt.Sprintf("http://localhost:%s/%s", "9998", path),
 			bytes.NewBuffer([]byte("")),
 		)
 
@@ -70,9 +68,11 @@ func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 		assert.Nil(t, err)
 
 		if g, e := res.StatusCode, 200; g != e {
-			t.Errorf("Expected status code %d, got %d", g, e)
+			t.Errorf("Expected status code %d, got %d", e, g)
 		}
 	}
+
+	exit <- true
 }
 
 func setupDefinitionFiles(t *testing.T, rootDir string, dfs []definitionFile) {
