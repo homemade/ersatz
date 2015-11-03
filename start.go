@@ -95,7 +95,11 @@ func (s *ServerApp) Handle(w http.ResponseWriter, r *http.Request) {
 
 func (s *ServerApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 
-	variant := "default"
+	variant, err := s.fetchVariation(url, method)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Check to see if the request is in the cache
 	if c, exists := s.EndpointCache[EndpointIndex{url, method, variant}]; exists {
@@ -115,4 +119,12 @@ func (s *ServerApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 	}
 
 	return ep, nil
+}
+
+/////////////////////////////////////////////////////
+// Find the active variation for an endpoint index
+/////////////////////////////////////////////////////
+
+func (s *ServerApp) fetchVariation(url, method string) (string, error) {
+	return "default", nil
 }

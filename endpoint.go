@@ -11,7 +11,13 @@ type EndpointIndex struct {
 	Variant string
 }
 
+type EndpointVariation struct {
+	Variation string
+	Count     int
+}
+
 type EndpointCache map[EndpointIndex]*Endpoint
+type EndpointVariationSchedule map[EndpointIndex]EndpointVariation
 
 func NewEndpoint() *Endpoint {
 	return &Endpoint{}
