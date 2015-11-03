@@ -1,94 +1,116 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
-	"path/filepath"
+
+	"github.com/braintree/manners"
 )
 
-const (
-	HTTP_DELETE  = "DELETE"
-	HTTP_GET     = "GET"
-	HTTP_HEAD    = "HEAD"
-	HTTP_POST    = "POST"
-	HTTP_PUT     = "PUT"
-	HTTP_OPTIONS = "OPTIONS"
-)
-
-var HTTPVerbs = []string{
-	HTTP_DELETE,
-	HTTP_GET,
-	HTTP_HEAD,
-	HTTP_POST,
-	HTTP_PUT,
-	HTTP_OPTIONS,
-}
-
-type ErrNoVerbsFound string
-
-func (e ErrNoVerbsFound) Error() string {
-	return fmt.Sprintf("No HTTP verb folders found within: %s", string(e))
-}
-
-type ErrNoDefinitionsFound string
-
-func (e ErrNoDefinitionsFound) Error() string {
-	return fmt.Sprintf("No definition files found within: %s", string(e))
-}
-
-func NewStartApp(port int, rootDir string) *StartApp {
+func NewStartApp(port string, rootDir string) *StartApp {
 	return &StartApp{
-		RootDir:              rootDir,
-		Port:                 port,
-		PathToVerb:           make(map[string][]string),
-		PathVerbToDefinition: make(map[string][]string),
+		RootDir: rootDir,
+		Port:    port,
 	}
 }
 
 type StartApp struct {
-	RootDir              string
-	Port                 int
-	PathToVerb           map[string][]string
-	PathVerbToDefinition map[string][]string
+	RootDir       string
+	Port          string
+	EndpointCache EndpointCache
 }
 
-func (s *StartApp) Run() error {
-	err := filepath.Walk(s.RootDir, s.walkFn)
-	if err != nil {
-		return err
+/////////////////////////////////////////////////////
+// Check the basic settings and register handlers
+/////////////////////////////////////////////////////
+
+func (s *StartApp) Setup() error {
+
+	// Check that the path exists
+	path, err := os.Stat(s.RootDir)
+
+	if os.IsNotExist(err) {
+		return fmt.Errorf("no such file or directory: %s", s.RootDir)
 	}
 
-	if len(s.PathToVerb) == 0 {
-		return ErrNoVerbsFound(s.RootDir)
+	if !path.IsDir() {
+		return fmt.Errorf("Path is not a directory %s", s.RootDir)
 	}
 
-	if len(s.PathVerbToDefinition) == 0 {
-		return ErrNoDefinitionsFound(s.RootDir)
-	}
+	http.HandleFunc("/", s.Handle)
 
 	return nil
 }
 
-func (s *StartApp) walkFn(path string, info os.FileInfo, err error) error {
+/////////////////////////////////////////////////////
+// Given an exit channel, run everything
+/////////////////////////////////////////////////////
+
+func (s *StartApp) Run(exit chan interface{}) {
+	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), nil)
+
+	<-exit
+}
+
+/////////////////////////////////////////////////////
+// This is the main handler
+/////////////////////////////////////////////////////
+
+func (s *StartApp) Handle(w http.ResponseWriter, r *http.Request) {
+
+	ep, err := s.fetchEndpoint(r.URL.Path[1:], r.Method)
+
 	if err != nil {
-		return err
+		w.Header().Set("Ersatz-Error", err.Error())
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
-	relativePath, err := filepath.Rel(s.RootDir, path)
+	body, err := json.Marshal(ep.Body)
+
 	if err != nil {
-		return err
-	}
-	relativeDirPath := filepath.Dir(relativePath)
-
-	if info.IsDir() {
-		for _, httpVerb := range HTTPVerbs {
-			if info.Name() == httpVerb {
-				s.PathToVerb[relativeDirPath] = append(s.PathToVerb[relativeDirPath], httpVerb)
-			}
-		}
-	} else {
-		s.PathVerbToDefinition[relativeDirPath] = append(s.PathVerbToDefinition[relativeDirPath], info.Name())
+		w.Header().Set("Ersatz-Error", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	return nil
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+
+	for k, v := range ep.Headers {
+		w.Header().Set(k, v)
+	}
+
+	w.Write(body)
+}
+
+/////////////////////////////////////////////////////
+// Fetch a given endpoint by method and url
+/////////////////////////////////////////////////////
+
+func (s *StartApp) fetchEndpoint(url, method string) (*Endpoint, error) {
+
+	variant := "default"
+
+	// Check to see if the request is in the cache
+	if c, exists := s.EndpointCache[EndpointIndex{url, method, variant}]; exists {
+		return c, nil
+	}
+
+	file, e := ioutil.ReadFile(fmt.Sprintf("%s/%s/%s/%s.json", s.RootDir, url, method, variant))
+
+	if e != nil {
+		return nil, e
+	}
+
+	ep := NewEndpoint()
+
+	if e := json.Unmarshal(file, ep); e != nil {
+		return nil, e
+	}
+
+	return ep, nil
 }

@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
-	"github.com/docopt/docopt.go"
+	docopt "github.com/docopt/docopt.go"
 )
 
 const (
@@ -23,11 +22,11 @@ const (
 )
 
 func main() {
-	returnCode := entryPoint(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
-	os.Exit(returnCode)
+	os.Exit(entryPoint(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
 func entryPoint(cliArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
+
 	args, err := docopt.Parse(usage, cliArgs, true, version, true)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -35,16 +34,19 @@ func entryPoint(cliArgs []string, stdin io.Reader, stdout io.Writer, stderr io.W
 	}
 
 	if args["start"].(bool) {
-		port, err := strconv.Atoi(args["<port>"].(string))
-		if err != nil {
+
+		stop := make(chan interface{}, 1)
+
+		startApp := NewStartApp(args["<port>"].(string), args["<definitions_dir>"].(string))
+
+		if err := startApp.Setup(); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		startApp := NewStartApp(port, args["<definitions_dir>"].(string))
-		if err := startApp.Run(); err != nil {
-			fmt.Fprintln(stderr, err)
-			return 1
-		}
+
+		fmt.Println("[ERSATZ] Listening on port " + startApp.Port)
+
+		startApp.Run(stop)
 	}
 
 	return 0
