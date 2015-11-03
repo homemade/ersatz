@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/braintree/manners"
 )
@@ -100,7 +101,7 @@ func (s *StartApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 		return c, nil
 	}
 
-	file, e := ioutil.ReadFile(fmt.Sprintf("%s/%s/%s/%s.json", s.RootDir, url, method, variant))
+	file, e := ioutil.ReadFile(filepath.Join(s.RootDir, url, method, variant+".json"))
 
 	if e != nil {
 		return nil, e
