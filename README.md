@@ -37,7 +37,8 @@ Ersatz requires a drectory of endpoint definitions. The expected file layout is 
 
 Using that definitions directory, ersatz would serve the following, unvaried endpoints:
 
-```GET /products
+```
+GET /products
 POST /products
 GET /products/123
 PUT /products/123 
@@ -69,7 +70,8 @@ Ersatz has a special command endpoint, `/__ersatz`. This endpoint currently only
 
 For example, the request `POST /__ersatz`, with the raw request body
 
-```{
+```
+{
     "command": "vary",
     "endpoint": {
         "url": "/products/123",
