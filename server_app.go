@@ -13,11 +13,12 @@ import (
 
 func NewServerApp(port string, rootDir string) *ServerApp {
 	return &ServerApp{
+
 		RootDir:                   rootDir,
 		Port:                      port,
+		Mux:                       http.NewServeMux(),
 		EndpointCache:             make(EndpointCache),
 		EndpointVariationSchedule: make(EndpointVariationSchedule),
-		Mux: http.NewServeMux(),
 	}
 }
 
@@ -69,6 +70,35 @@ func (s *ServerApp) Run(exit chan interface{}) {
 /////////////////////////////////////////////////////
 
 func (s *ServerApp) HandleControlRequest(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != HTTP_POST {
+		w.Header().Set("Ersatz-Error", "Please supply a POST request")
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	// Grab the body
+	body, err := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+
+	if err != nil {
+		w.Header().Set("Ersatz-Error", err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	cmd := NewServerCommand()
+
+	if err := json.Unmarshal(body, cmd); err != nil {
+		w.Header().Set("Ersatz-Error", err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := cmd.Execute(s); err != nil {
+		w.Header().Set("Ersatz-Error", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 /////////////////////////////////////////////////////
@@ -144,5 +174,22 @@ func (s *ServerApp) fetchEndpoint(url, method string) (*Endpoint, error) {
 /////////////////////////////////////////////////////
 
 func (s *ServerApp) fetchVariation(url, method string) (string, error) {
-	return "default", nil
+
+	key := EndpointIndex{url, method}
+
+	schedule, exists := s.EndpointVariationSchedule[key]
+
+	if !exists {
+		return "default", nil
+	}
+
+	// SAtore the final result
+	variant := schedule.Variation
+
+	// Test for zero count
+	if schedule.Count--; schedule.Count == 0 {
+		delete(s.EndpointVariationSchedule, key)
+	}
+
+	return variant, nil
 }

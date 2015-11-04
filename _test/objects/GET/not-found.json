@@ -1,0 +1,8 @@
+{  
+    "response_code": 404,
+    "headers":{  
+        "header-1":"some other header value"
+    },
+    "body": null
+}
+

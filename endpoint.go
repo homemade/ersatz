@@ -1,6 +1,5 @@
 package main
 
-// FIXME! Rename to EnpointFile
 type Endpoint struct {
 	ResponseCode int               `json:"response_code"`
 	Headers      map[string]string `json:"headers"`
@@ -8,13 +7,13 @@ type Endpoint struct {
 }
 
 type EndpointIndex struct {
-	URL    string
-	Method string
+	URL    string `json:"url"`
+	Method string `json:"method"`
 }
 
 type VariableEndpointIndex struct {
 	EndpointIndex
-	Variant string
+	Variant string `json:"variant"`
 }
 
 type EndpointVariation struct {

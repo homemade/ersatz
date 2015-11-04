@@ -21,7 +21,7 @@ type definitionFile struct {
 	verb      string
 	endpoints []string
 	variants  []string
-	json      string
+	json      []string
 }
 
 func Test_ItReturnsErrorIfPathDoesntExist(t *testing.T) {
@@ -36,9 +36,9 @@ func Test_ItSetsupAHandlerForAllTheFilesOnThePath(t *testing.T) {
 	defer cleanupFn()
 
 	endpoints := []definitionFile{
-		{HTTP_POST, []string{"endpoint1"}, []string{"default.json"}, defaultJSON},
-		{HTTP_GET, []string{"endpoint1"}, []string{"default.json"}, defaultJSON},
-		{HTTP_GET, []string{"endpoint1", "subendpoint1"}, []string{"default.json"}, defaultJSON},
+		{HTTP_POST, []string{"endpoint1"}, []string{"default.json"}, []string{defaultJSON}},
+		{HTTP_GET, []string{"endpoint1"}, []string{"default.json"}, []string{defaultJSON}},
+		{HTTP_GET, []string{"endpoint1", "subendpoint1"}, []string{"default.json"}, []string{defaultJSON}},
 	}
 
 	setupSubFolders(t, dirName, endpoints)
@@ -112,7 +112,7 @@ func Test_ItReturnsTheRightJSONAndHeadersForFiles(t *testing.T) {
 		HTTP_POST,
 		[]string{"endpoint"},
 		[]string{"default.json"},
-		string(raw_json),
+		[]string{string(raw_json)},
 	}
 
 	// Create the files for the endpoint
@@ -167,10 +167,209 @@ func Test_ItReturnsTheRightJSONAndHeadersForFiles(t *testing.T) {
 	exit <- true
 }
 
+func Test_TheControlEndpointResponds400ToInvalidRequests(t *testing.T) {
+
+	// Start and set up the app
+	startApp := NewServerApp("9998", ".")
+
+	serr := startApp.Setup()
+	assert.Nil(t, serr)
+
+	// Run the app
+	exit := make(chan interface{})
+	go startApp.Run(exit)
+
+	req, err := http.NewRequest(
+		HTTP_POST,
+		"http://localhost:9998/__ersatz",
+		bytes.NewBuffer([]byte("")),
+	)
+
+	assert.Nil(t, err)
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	assert.Nil(t, err)
+
+	// Make sure thet everything comes out as expected
+	if g, e := res.StatusCode, 400; g != e {
+		t.Errorf("Expected status code %d, got %d", e, g)
+	}
+
+	// Close the server
+	exit <- true
+}
+
+func Test_TheControlEndpointResponds200ToAValidVaryRequest(t *testing.T) {
+
+	// Create a command
+	cmd := NewServerCommand()
+
+	cmd.Command = SERVER_COMMAND_VARY
+	cmd.VariableEndpointIndex = VariableEndpointIndex{
+		EndpointIndex{
+			URL:    "some/endpoint",
+			Method: HTTP_GET,
+		},
+		"some_variation",
+	}
+
+	raw_json, err := json.Marshal(cmd)
+	assert.Nil(t, err)
+
+	// Start and set up the app
+	startApp := NewServerApp("9998", ".")
+
+	serr := startApp.Setup()
+	assert.Nil(t, serr)
+
+	// Run the app
+	exit := make(chan interface{})
+	go startApp.Run(exit)
+
+	req, err := http.NewRequest(
+		HTTP_POST,
+		"http://localhost:9998/__ersatz",
+		bytes.NewBuffer(raw_json),
+	)
+
+	assert.Nil(t, err)
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	assert.Nil(t, err)
+
+	// Make sure thet everything comes out as expected
+	if g, e := res.StatusCode, 200; g != e {
+		t.Errorf("Expected status code %d, got %d", e, g)
+	}
+
+	// Close the server
+	exit <- true
+}
+
+func Test_AnEndpointCanBeVaried(t *testing.T) {
+
+	dirName, cleanupFn := setupRootDir(t)
+	defer cleanupFn()
+
+	// Expected results
+	expectedHeaders := map[string]string{
+		"Header-One": "Value 1",
+		"Header-Two": "Value 2",
+	}
+
+	expectedBody := map[string]int{
+		"d": 4,
+		"b": 5,
+		"e": 6,
+	}
+
+	// Define specific JSON for the endpoint
+	ep := NewEndpoint()
+
+	for k, v := range expectedHeaders {
+		ep.Headers[k] = v
+	}
+
+	ep.ResponseCode = 201
+
+	ep.Body = expectedBody
+
+	raw_json, err := json.Marshal(ep)
+	assert.Nil(t, err)
+
+	endpoint := definitionFile{
+		HTTP_POST,
+		[]string{"endpoint"},
+		[]string{"default.json", "some_variation.json"},
+		[]string{defaultJSON, string(raw_json)},
+	}
+
+	// Create the files for the endpoint
+	setupSubFolders(t, dirName, []definitionFile{endpoint})
+	setupDefinitionFiles(t, dirName, []definitionFile{endpoint})
+
+	// Create a command
+	cmd := NewServerCommand()
+
+	cmd.Command = SERVER_COMMAND_VARY
+	cmd.VariableEndpointIndex = VariableEndpointIndex{
+		EndpointIndex{
+			URL:    "endpoint",
+			Method: HTTP_POST,
+		},
+		"some_variation",
+	}
+
+	raw_json, jerr := json.Marshal(cmd)
+	assert.Nil(t, jerr)
+
+	// Start and set up the app
+	startApp := NewServerApp("9996", dirName)
+
+	serr := startApp.Setup()
+	assert.Nil(t, serr)
+
+	// Run the app
+	exit := make(chan interface{})
+	go startApp.Run(exit)
+
+	// Make the control request
+	req, err := http.NewRequest(
+		HTTP_POST,
+		"http://localhost:9996/__ersatz",
+		bytes.NewBuffer(raw_json),
+	)
+
+	assert.Nil(t, err)
+
+	client := &http.Client{}
+	_, cerr := client.Do(req)
+	assert.Nil(t, cerr)
+
+	// Make the request, which should now be varied
+	path := strings.Join(endpoint.endpoints, "/")
+
+	req2, err := http.NewRequest(
+		endpoint.verb,
+		fmt.Sprintf("http://localhost:%s/%s", "9996", path),
+		bytes.NewBuffer([]byte("")),
+	)
+
+	assert.Nil(t, err)
+
+	client2 := &http.Client{}
+	res, err := client2.Do(req2)
+	assert.Nil(t, err)
+
+	// Make sure thet everything comes out as expected
+	if g, e := res.StatusCode, ep.ResponseCode; g != e {
+		t.Errorf("Expected status code %d, got %d", e, g)
+	}
+
+	for k, v := range expectedHeaders {
+		assert.Equal(t, res.Header.Get(k), v)
+	}
+
+	// Check the body
+	body, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+
+	bodyResult := make(map[string]int)
+
+	assert.Nil(t, json.Unmarshal(body, &bodyResult))
+
+	assert.True(t, reflect.DeepEqual(expectedBody, bodyResult))
+
+	// Close the server
+	exit <- true
+}
+
 func setupDefinitionFiles(t *testing.T, rootDir string, dfs []definitionFile) {
 	for _, df := range dfs {
 
-		for _, variant := range df.variants {
+		for i, variant := range df.variants {
 
 			path := filepath.Join(rootDir, filepath.Join(df.endpoints...), df.verb) + "/" + variant
 
@@ -179,9 +378,9 @@ func setupDefinitionFiles(t *testing.T, rootDir string, dfs []definitionFile) {
 			assert.Nil(t, err)
 
 			// Write some stock data into it
-			n, err := f.Write([]byte(df.json))
+			n, err := f.Write([]byte(df.json[i]))
 			assert.Nil(t, err)
-			assert.Equal(t, n, len(df.json))
+			assert.Equal(t, n, len(df.json[i]))
 		}
 	}
 }
