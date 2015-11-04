@@ -1,6 +1,6 @@
 ## ersatz
 
-**Note: this is a work in progress!**
+*Note: this is a work in progress!*
 
 Ersatz is a tool for mocking RESTful JSON API requests written in Go. It uses simple directory and file structures to emulate the requests and responses that might be associated with a live API server. Response endpoints can be 'varied' (that is, issue different response codes, headers and bodies) using a very simple RESTful command API endpoint.
 
