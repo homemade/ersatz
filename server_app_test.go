@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -29,7 +31,7 @@ func Test_ItReturnsErrorIfPathDoesntExist(t *testing.T) {
 	}
 }
 
-func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
+func Test_ItSetsupAHandlerForAllTheFilesOnThePath(t *testing.T) {
 	dirName, cleanupFn := setupRootDir(t)
 	defer cleanupFn()
 
@@ -72,6 +74,96 @@ func Test_ItSetsupAHandlerForEachEndpointOnTheMux(t *testing.T) {
 		}
 	}
 
+	exit <- true
+}
+
+func Test_ItReturnsTheRightJSONAndHeadersForFiles(t *testing.T) {
+
+	dirName, cleanupFn := setupRootDir(t)
+	defer cleanupFn()
+
+	// Expected results
+	expectedHeaders := map[string]string{
+		"Header-One": "Value 1",
+		"Header-Two": "Value 2",
+	}
+
+	expectedBody := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+	}
+
+	// Define specific JSON for the endpoint
+	ep := NewEndpoint()
+
+	for k, v := range expectedHeaders {
+		ep.Headers[k] = v
+	}
+
+	ep.ResponseCode = 201
+
+	ep.Body = expectedBody
+
+	raw_json, err := json.Marshal(ep)
+	assert.Nil(t, err)
+
+	endpoint := definitionFile{
+		HTTP_POST,
+		[]string{"endpoint"},
+		[]string{"default.json"},
+		string(raw_json),
+	}
+
+	// Create the files for the endpoint
+	setupSubFolders(t, dirName, []definitionFile{endpoint})
+	setupDefinitionFiles(t, dirName, []definitionFile{endpoint})
+
+	// Start and set up the app
+	startApp := NewServerApp("9998", dirName)
+
+	serr := startApp.Setup()
+	assert.Nil(t, serr)
+
+	// Run the app
+	exit := make(chan interface{})
+	go startApp.Run(exit)
+
+	// Make a request to the endpoint
+	path := strings.Join(endpoint.endpoints, "/")
+
+	req, err := http.NewRequest(
+		endpoint.verb,
+		fmt.Sprintf("http://localhost:%s/%s", "9998", path),
+		bytes.NewBuffer([]byte("")),
+	)
+
+	assert.Nil(t, err)
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	assert.Nil(t, err)
+
+	// Make sure thet everything comes out as expected
+	if g, e := res.StatusCode, ep.ResponseCode; g != e {
+		t.Errorf("Expected status code %d, got %d", e, g)
+	}
+
+	for k, v := range expectedHeaders {
+		assert.Equal(t, res.Header.Get(k), v)
+	}
+
+	// Check the body
+	body, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+
+	bodyResult := make(map[string]int)
+
+	assert.Nil(t, json.Unmarshal(body, &bodyResult))
+
+	assert.True(t, reflect.DeepEqual(expectedBody, bodyResult))
+
+	// Close the server
 	exit <- true
 }
 

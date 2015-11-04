@@ -17,12 +17,14 @@ func NewServerApp(port string, rootDir string) *ServerApp {
 		Port:                      port,
 		EndpointCache:             make(EndpointCache),
 		EndpointVariationSchedule: make(EndpointVariationSchedule),
+		Mux: http.NewServeMux(),
 	}
 }
 
 type ServerApp struct {
 	RootDir                   string
 	Port                      string
+	Mux                       *http.ServeMux
 	EndpointCache             EndpointCache
 	EndpointVariationSchedule EndpointVariationSchedule
 }
@@ -44,8 +46,8 @@ func (s *ServerApp) Setup() error {
 		return fmt.Errorf("Path is not a directory %s", s.RootDir)
 	}
 
-	http.HandleFunc("/__ersatz", s.HandleControlRequest)
-	http.HandleFunc("/", s.HandleMockRequest)
+	s.Mux.HandleFunc("/__ersatz", s.HandleControlRequest)
+	s.Mux.HandleFunc("/", s.HandleMockRequest)
 
 	return nil
 }
@@ -55,9 +57,11 @@ func (s *ServerApp) Setup() error {
 /////////////////////////////////////////////////////
 
 func (s *ServerApp) Run(exit chan interface{}) {
-	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), nil)
+	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), s.Mux)
 
 	<-exit
+
+	manners.Close()
 }
 
 /////////////////////////////////////////////////////
@@ -92,12 +96,12 @@ func (s *ServerApp) HandleMockRequest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 
-	if ep.ResponseCode > 0 {
-		w.WriteHeader(ep.ResponseCode)
-	}
-
 	for k, v := range ep.Headers {
 		w.Header().Set(k, v)
+	}
+
+	if ep.ResponseCode > 0 {
+		w.WriteHeader(ep.ResponseCode)
 	}
 
 	w.Write(body)

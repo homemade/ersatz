@@ -26,5 +26,7 @@ type EndpointCache map[VariableEndpointIndex]*Endpoint
 type EndpointVariationSchedule map[EndpointIndex]EndpointVariation
 
 func NewEndpoint() *Endpoint {
-	return &Endpoint{}
+	return &Endpoint{
+		Headers: make(map[string]string),
+	}
 }
