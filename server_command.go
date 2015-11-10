@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ServerCommand struct {
 	Command               string                `json:"command"`
@@ -18,6 +21,10 @@ func NewServerCommand() *ServerCommand {
 func (c ServerCommand) Execute(s *ServerApp) error {
 	switch c.Command {
 	case SERVER_COMMAND_VARY:
+
+		// Trim the leading slash to prevent confusing collisions
+		c.VariableEndpointIndex.EndpointIndex.URL = strings.TrimLeft(c.VariableEndpointIndex.EndpointIndex.URL, "/")
+
 		s.EndpointVariationSchedule[c.VariableEndpointIndex.EndpointIndex] = EndpointVariation{
 			Variation: c.VariableEndpointIndex.Variant,
 			Count:     1,
